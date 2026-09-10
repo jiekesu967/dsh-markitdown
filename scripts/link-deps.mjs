@@ -110,23 +110,39 @@ function link(linkPath, target) {
   symlinkSync(resolve(target), linkPath, process.platform === 'win32' ? 'junction' : 'dir')
 }
 
-const result = resolveSources()
-if (result.resolved === undefined) {
-  console.error('link-deps: could not locate a complete set of DSH packages.')
-  console.error('Set DSH_CHECKOUT (a DSH source checkout) or DSH_RUNTIME (an installed @deepseek-ai/dsh).')
-  for (const attempt of result.attempts) console.error(`  tried ${attempt}`)
-  process.exit(1)
+/**
+ * Link every required package, or explain why that is impossible.
+ * @param {string} root - project root that receives the `node_modules` links.
+ * @returns {{ source: { kind: string, root: string }, count: number, types: boolean }} what was linked.
+ * @throws {Error} when no source has the complete package set.
+ */
+export function linkDependencies(root = ROOT) {
+  const result = resolveSources()
+  if (result.resolved === undefined) {
+    const tried = result.attempts.map((attempt) => `  tried ${attempt}`).join('\n')
+    throw new Error(
+      'could not locate a complete set of DSH packages.\n' +
+        'Set DSH_CHECKOUT (a DSH source checkout) or DSH_RUNTIME (an installed @deepseek-ai/dsh).\n' +
+        tried,
+    )
+  }
+
+  for (const [name, target] of result.resolved) link(join(root, 'node_modules', ...name.split('/')), target)
+
+  const types = ['node_modules/@types/node'].map((rel) => join(result.source.root, rel)).find(existsSync)
+  if (types !== undefined) link(join(root, 'node_modules', '@types', 'node'), types)
+
+  return { source: result.source, count: result.resolved.size, types: types !== undefined }
 }
 
-for (const [name, target] of result.resolved) link(join(ROOT, 'node_modules', ...name.split('/')), target)
-
-const types = (() => {
-  const runtime = join(result.source.root, 'node_modules', '@types', 'node')
-  if (existsSync(runtime)) return runtime
-  const checkout = join(result.source.root, 'node_modules', '@types', 'node')
-  return existsSync(checkout) ? checkout : undefined
-})()
-if (types !== undefined) link(join(ROOT, 'node_modules', '@types', 'node'), types)
-
-console.log(`link-deps: ${result.source.kind} ${result.source.root}`)
-console.log(`link-deps: linked ${result.resolved.size} packages${types === undefined ? ' (no @types/node found)' : ''}`)
+// CLI entry: `node scripts/link-deps.mjs`
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const linked = linkDependencies()
+    console.log(`link-deps: ${linked.source.kind} ${linked.source.root}`)
+    console.log(`link-deps: linked ${linked.count} packages${linked.types ? '' : ' (no @types/node found)'}`)
+  } catch (error) {
+    console.error(`link-deps: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+  }
+}

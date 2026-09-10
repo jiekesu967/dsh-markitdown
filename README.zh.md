@@ -129,13 +129,19 @@ winget install astral-sh.uv       # 之后 `uvx markitdown` 免安装可用
 ## 开发
 
 ```sh
-bash scripts/build.sh      # 编译 src/ → lib/
-npm test                   # 内置转换器 + 插件接口测试
+npm run build      # 编译 src/ → lib/
+npm test           # 内置转换器 + 插件接口测试
+npm run typecheck  # 只做类型检查
 ```
 
 构建从 `$DSH_CHECKOUT`（源码检出）或 `$DSH_RUNTIME`（已安装运行时）解析 DSH 包，
-建好链接后用检出内的或已下载的 `tsc` 编译到 `lib/`。
+链接进 `node_modules`，然后**在单个 Node 进程内**通过 TypeScript 编译器 API 完成编译——
+不依赖 shell、不创建子进程，因此在 Windows 以及受限环境里同样可用。
+`scripts/build.sh` 只是给需要 shell 入口的调用方准备的一层包装。
+构建是可复现的：源码未变时重新构建，`lib/` 逐字节一致。
+
 测试不需要网络、Python 或 MarkItDown：内置引擎用进程内合成出来的 OOXML 夹具测试。
+每个测试文件默认各起一个进程；若环境不允许创建子进程，用 `npm run test:inline` 在同进程内跑完。
 
 ```
 src/index.ts     插件装配：配置、工具定义、执行路径
@@ -149,16 +155,19 @@ src/exec.ts      子进程封装，失败原因如实上报
 ### 发布
 
 ```sh
-bash scripts/build.sh
+npm run build
 npm test
 npm pack
 GH_PAT=<具有 repo 权限的 token> npm run release
+npm publish
 ```
 
 `scripts/release.mjs` 会按 `package.json` 里的版本创建 GitHub Release、附上打包好的 tgz，
 并设置仓库 topics。它是幂等的——重复执行只会替换已有 Release 上的附件。
 `owner/repo`（从 `.git/config` 读取）与 token（从环境变量读取）都在运行时提供，
 因此二者都不硬编码，token 也不会落到任何文件里。
+
+如果仓库 remote 配的是 SSH，那么推送这一步完全不需要任何 GitHub token。
 
 ## 致谢
 
