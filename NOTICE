@@ -1,0 +1,25 @@
+dsh-markitdown
+==============
+
+This project is distributed under the MIT License; see LICENSE.
+
+Third-party components
+----------------------
+
+Microsoft MarkItDown
+    https://github.com/microsoft/markitdown
+    MIT License, Copyright (c) Microsoft Corporation.
+
+    This plugin does not bundle, vendor, or modify MarkItDown. It locates an
+    installation the user already has -- Microsoft's `markitdown` command,
+    `uvx markitdown`, or `python -m markitdown` -- and invokes it as a separate
+    process. When no installation is present it uses its own built-in
+    converter and never downloads MarkItDown on its own.
+
+Trademarks
+----------
+
+"MarkItDown" and any Microsoft product names are trademarks of Microsoft
+Corporation. They are used here only to describe what this plugin interoperates
+with. This project is not affiliated with, sponsored by, or endorsed by
+Microsoft.
