@@ -1,5 +1,6 @@
 # dsh-markitdown
 
+[![npm](https://img.shields.io/npm/v/dsh-markitdown)](https://www.npmjs.com/package/dsh-markitdown)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![stars](https://img.shields.io/github/stars/jiekesu967/dsh-markitdown)](https://github.com/jiekesu967/dsh-markitdown)
 
@@ -80,7 +81,8 @@ dsh plugin --profile web add ./dsh-markitdown-0.1.0.tgz
 dsh plugin --profile web add dsh-markitdown
 ```
 
-Not published to npm yet — until it is, use one of the two installs above.
+The package is published from this repository:
+<https://www.npmjs.com/package/dsh-markitdown>.
 
 Then restart `dsh web`. The `markitdown` tool appears in the next session.
 

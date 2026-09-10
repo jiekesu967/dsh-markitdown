@@ -1,5 +1,6 @@
 # dsh-markitdown
 
+[![npm](https://img.shields.io/npm/v/dsh-markitdown)](https://www.npmjs.com/package/dsh-markitdown)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![stars](https://img.shields.io/github/stars/jiekesu967/dsh-markitdown)](https://github.com/jiekesu967/dsh-markitdown)
 
@@ -78,7 +79,7 @@ dsh plugin --profile web add ./dsh-markitdown-0.1.0.tgz
 dsh plugin --profile web add dsh-markitdown
 ```
 
-尚未发布到 npm——在此之前请使用上面两种安装方式之一。
+npm 包由本仓库发布：<https://www.npmjs.com/package/dsh-markitdown>。
 
 重启 `dsh web`，`markitdown` 工具会在下一个会话中出现。
 
