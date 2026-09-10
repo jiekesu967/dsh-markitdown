@@ -1,0 +1,8 @@
+# Normalize to LF in the repository. `scripts/build.sh` must keep LF on checkout:
+# a CRLF shebang script fails under bash with "bad interpreter".
+* text=auto eol=lf
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.tgz binary

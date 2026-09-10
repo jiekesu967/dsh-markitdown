@@ -1,0 +1,5 @@
+# Build output is committed on purpose: `dsh plugin add github:jiekesu967/dsh-markitdown`
+# installs straight from the repository, and that path has no build step.
+node_modules/
+*.tsbuildinfo
+*.tgz

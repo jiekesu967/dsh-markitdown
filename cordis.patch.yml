@@ -1,0 +1,4 @@
+# dsh-markitdown bundle layer: inserts the MarkItDown document-conversion tool.
+- insert:
+    - id: markitdown
+      name: dsh-markitdown
