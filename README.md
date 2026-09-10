@@ -154,6 +154,20 @@ src/zip.ts       minimal ZIP reader for OOXML/EPUB containers
 src/exec.ts      subprocess plumbing with honest failure reporting
 ```
 
+### Releasing
+
+```sh
+bash scripts/build.sh
+npm test
+npm pack
+GH_PAT=<token with repo scope> npm run release
+```
+
+`scripts/release.mjs` creates the GitHub Release for the version in `package.json`, attaches the
+packed tarball, and applies repository topics. It is idempotent — re-running replaces the asset on
+the existing release. Both `owner/repo` (read from `.git/config`) and the token (read from the
+environment) are supplied at runtime, so neither is hard-coded and the token never reaches a file.
+
 ## Credits
 
 MarkItDown is Microsoft's work, MIT licensed: <https://github.com/microsoft/markitdown>.

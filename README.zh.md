@@ -145,6 +145,20 @@ src/zip.ts       OOXML/EPUB 用的最小 ZIP 读取器
 src/exec.ts      子进程封装，失败原因如实上报
 ```
 
+### 发布
+
+```sh
+bash scripts/build.sh
+npm test
+npm pack
+GH_PAT=<具有 repo 权限的 token> npm run release
+```
+
+`scripts/release.mjs` 会按 `package.json` 里的版本创建 GitHub Release、附上打包好的 tgz，
+并设置仓库 topics。它是幂等的——重复执行只会替换已有 Release 上的附件。
+`owner/repo`（从 `.git/config` 读取）与 token（从环境变量读取）都在运行时提供，
+因此二者都不硬编码，token 也不会落到任何文件里。
+
 ## 致谢
 
 MarkItDown 是微软的作品，MIT 许可：<https://github.com/microsoft/markitdown>。
