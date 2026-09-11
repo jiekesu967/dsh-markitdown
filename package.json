@@ -1,6 +1,6 @@
 {
   "name": "dsh-markitdown",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Microsoft MarkItDown as a DeepSeek Harness tool: convert PDF, Word, Excel, PowerPoint, HTML, CSV, EPUB, or a URL into Markdown the model can read.",
   "license": "MIT",
   "type": "module",
@@ -38,22 +38,27 @@
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jiekesu967/dsh-markitdown.git"
+  },
+  "homepage": "https://github.com/jiekesu967/dsh-markitdown#readme",
+  "bugs": {
+    "url": "https://github.com/jiekesu967/dsh-markitdown/issues"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
   },
-  "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.0"
-  },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.0-rc <5",
-    "@deepseek-ai/dsh-llm": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-tools": ">=0.0.1-rc <2"
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-agent": ">=0.0.1-rc <2",
-    "@deepseek-ai/dsh-fs": ">=0.0.1-rc <2",
+    "@deepseek-ai/dsh-agent": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-fs": "^0.1.5-rc.1",
     "@types/node": "^22.17.2",
     "typescript": "^5.9.2"
   },
