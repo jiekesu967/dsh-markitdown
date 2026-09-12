@@ -17,7 +17,7 @@
  * - Subprocesses are launched through `execFile` with `shell: false`; only real
  *   executables are accepted, so no input can reach a command line.
  */
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, open, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
@@ -362,8 +362,31 @@ async function convertWithBuiltin(
     const bytes = Buffer.from(await fs.readBytes(file.target, signal, config.maxBytes))
     return convertBuiltin(bytes, file.processPath)
   }
-  const bytes = await readFile(file.processPath)
+  const bytes = await readWithLimit(file.processPath, config.maxBytes)
   return convertBuiltin(bytes, file.processPath)
+}
+
+/**
+ * Read at most `maxBytes` + 1 bytes from a local file without the filesystem
+ * seam. Mirrors the seam path's cap so the fallback cannot be pushed into
+ * buffering an arbitrarily large file the configured limit would have refused.
+ * @param path - absolute process path.
+ * @param maxBytes - configured input cap.
+ * @returns the bytes read; at most `maxBytes` of them.
+ */
+async function readWithLimit(path: string, maxBytes: number): Promise<Buffer> {
+  const handle = await open(path, 'r')
+  try {
+    const { size } = await handle.stat()
+    if (size > maxBytes) {
+      throw new Error(`${path} is larger than the configured maxBytes of ${maxBytes}`)
+    }
+    const buffer = Buffer.alloc(size)
+    const { bytesRead } = await handle.read(buffer, 0, size, 0)
+    return buffer.subarray(0, bytesRead)
+  } finally {
+    await handle.close()
+  }
 }
 
 async function fetchWithLimit(
@@ -378,12 +401,48 @@ async function fetchWithLimit(
   const combined = typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeout]) : timeout
   const response = await fetch(url, { signal: combined, redirect: 'follow' })
   if (!response.ok) throw new Error(`fetch ${url} failed with HTTP ${response.status} ${response.statusText}`)
-  const body = Buffer.from(await response.arrayBuffer())
-  if (body.length > config.maxBytes) {
-    throw new Error(`fetched ${body.length} bytes, above the configured maxBytes of ${config.maxBytes}`)
+  const declared = response.headers.get('content-length')
+  if (declared !== null) {
+    const length = Number.parseInt(declared, 10)
+    if (Number.isFinite(length) && length > config.maxBytes) {
+      throw new Error(`${url} declares ${length} bytes, above the configured maxBytes of ${config.maxBytes}`)
+    }
   }
-  const name = new URL(url).pathname.split('/').pop() ?? 'index.html'
+  const body = await readBodyWithLimit(response, config.maxBytes)
+  const name = new URL(url).pathname.split('/').pop() || 'index.html'
   return { body, contentType: response.headers.get('content-type') ?? '', name }
+}
+
+/**
+ * Consume a response body while enforcing the byte cap during transfer, so an
+ * oversized body is abandoned mid-stream instead of being fully buffered first.
+ * @param response - the fetch response, after redirects.
+ * @param maxBytes - configured input cap.
+ * @returns at most `maxBytes` bytes.
+ */
+async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+  if (response.body === null) {
+    const whole = Buffer.from(await response.arrayBuffer())
+    if (whole.length > maxBytes) {
+      throw new Error(`fetched ${whole.length} bytes, above the configured maxBytes of ${maxBytes}`)
+    }
+    return whole
+  }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done === true) break
+    if (value === undefined) continue
+    chunks.push(value)
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error(`response body exceeded the configured maxBytes of ${maxBytes} before completion`)
+    }
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
 }
 
 async function writeOutput(

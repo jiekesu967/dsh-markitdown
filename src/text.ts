@@ -48,7 +48,7 @@ const NAMED_ENTITIES: Record<string, string> = {
  * @returns text with entities resolved.
  */
 export function decodeEntities(input: string): string {
-  return input.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (whole, body: string) => {
+  return input.replace(/&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (whole, body: string) => {
     if (body.startsWith('#')) {
       const hex = body[1] === 'x' || body[1] === 'X'
       const code = Number.parseInt(hex ? body.slice(2) : body.slice(1), hex ? 16 : 10)

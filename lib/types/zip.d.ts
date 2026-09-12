@@ -5,9 +5,10 @@ export declare class ZipError extends Error {
 /**
  * Read every non-directory entry of a ZIP container into memory.
  * @param buffer - the raw archive bytes.
+ * @param maxEntryBytes - cap on one entry's decompressed size; a larger entry raises instead of buffering it.
  * @returns entry name (POSIX separators) to decompressed content.
  */
-export declare function unzip(buffer: Buffer): Map<string, Buffer>;
+export declare function unzip(buffer: Buffer, maxEntryBytes?: number): Map<string, Buffer>;
 /**
  * Read one entry as UTF-8 text.
  * @param entries - the archive read by {@link unzip}.

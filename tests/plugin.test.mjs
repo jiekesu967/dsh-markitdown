@@ -197,3 +197,102 @@ test('package-manager chatter is filtered out of diagnostics', () => {
   assert.match(filtered, /FileConversionException/)
   assert.equal(filterEngineNoise('Downloading a (1MiB)\n'), '')
 })
+
+/** A harness double that accepts URL input, for the fetch-path tests. */
+function fetchHarness() {
+  let definition
+  const context = {
+    effect: (fn) => fn(),
+    tools: { register: (registered) => { definition = registered; return () => {} } },
+    get: () => undefined,
+  }
+  apply(context, Config({ engine: 'builtin', timeoutMs: 30_000, maxBytes: 8 * 1024 * 1024, allowUrls: true }))
+  return definition
+}
+
+function stubFetch(responder) {
+  const original = globalThis.fetch
+  globalThis.fetch = responder
+  return () => { globalThis.fetch = original }
+}
+
+test('a URL response over maxBytes is refused before it is fully buffered', async () => {
+  const restore = stubFetch(async () => ({ ok: true, status: 200, statusText: 'OK', headers: { get: () => null }, body: null, arrayBuffer: async () => new ArrayBuffer(9 * 1024 * 1024) }))
+  const definition = fetchHarness()
+  try {
+    // No content-length header: the streamed body itself must enforce the cap.
+    await assert.rejects(
+      () => definition.execute({ input: 'https://example.com/big' }, exec()),
+      (error) => /maxBytes/.test(error.message),
+    )
+  } finally {
+    restore()
+  }
+})
+
+test('a declared content-length over maxBytes is refused without downloading', async () => {
+  let downloaded = false
+  const restore = stubFetch(async () => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: (name) => (name === 'content-length' ? String(9 * 1024 * 1024) : 'text/plain') },
+    body: null,
+    arrayBuffer: async () => { downloaded = true; return new ArrayBuffer(0) },
+  }))
+  const definition = fetchHarness()
+  try {
+    await assert.rejects(
+      () => definition.execute({ input: 'https://example.com/declared' }, exec()),
+      (error) => /declares \d+ bytes/.test(error.message),
+    )
+    assert.equal(downloaded, false, 'the body must not be read when the declared size already exceeds the cap')
+  } finally {
+    restore()
+  }
+})
+
+test('a directory-like URL falls back to index.html rather than an empty name', async () => {
+  const restore = stubFetch(async () => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: (name) => (name === 'content-type' ? 'application/octet-stream' : null) },
+    body: null,
+    arrayBuffer: async () => new TextEncoder().encode('<h1>Title</h1>').buffer,
+  }))
+  const definition = fetchHarness()
+  try {
+    const value = await definition.execute({ input: 'https://example.com/docs/' }, exec())
+    assert.match(value.markdown, /# Title/)
+  } finally {
+    restore()
+  }
+})
+
+test('a local file above maxBytes fails in the seamless fallback path too', async () => {
+  const definition = harness()
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-'))
+  try {
+    const file = join(directory, 'big.txt')
+    await writeFile(file, 'x'.repeat(8 * 1024 * 1024 + 1), 'utf8')
+    await assert.rejects(
+      () => definition.execute({ input: file }, exec()),
+      (error) => /maxBytes/.test(error.message),
+    )
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('a process whose output exceeds the capture limit reports that, not a timeout', async () => {
+  const { run } = await import('../lib/exec.js')
+  await assert.rejects(
+    () =>
+      run([process.execPath, '-e', 'process.stdout.write("a".repeat(8 * 1024 * 1024))'], {
+        timeoutMs: 120_000,
+        maxBuffer: 64 * 1024,
+      }),
+    (error) => /output capture limit/.test(error.message) && !/deadline/.test(error.message),
+  )
+})

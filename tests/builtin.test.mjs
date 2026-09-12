@@ -11,7 +11,7 @@ import {
   convertBuiltin,
   convertBuiltinResponse,
 } from '../lib/builtin.js'
-import { htmlToMarkdown, parseDelimited, toMarkdownTable } from '../lib/text.js'
+import { decodeEntities, htmlToMarkdown, parseDelimited, toMarkdownTable } from '../lib/text.js'
 import { unzip } from '../lib/zip.js'
 import { makeDocx, makePptx, makeXlsx, makeZip } from './fixtures.mjs'
 
@@ -139,4 +139,52 @@ test('conversion is stable across repeated calls (no shared state)', () => {
   const first = convertBuiltin(makeDocx(), 'x.docx')
   const second = convertBuiltin(makeDocx(), 'x.docx')
   assert.equal(first, second)
+})
+
+test('deflated entries decode through the deflate path', () => {
+  const archive = makeZip([['word/x.txt', 'stored side']], { deflate: true })
+  const entries = unzip(archive)
+  assert.equal(entries.get('word/x.txt').toString('utf8'), 'stored side')
+})
+
+test('a zip bomb entry is refused by the decompression cap', () => {
+  const bomb = makeZip([['xl/worksheets/sheet1.xml', 'a'.repeat(4 * 1024 * 1024)]], { deflate: true })
+  assert.throws(() => unzip(bomb, 64 * 1024), /decompresses beyond the 65536-byte limit/)
+  assert.throws(() => convertBuiltin(bomb, 'bomb.xlsx', { maxEntryBytes: 64 * 1024 }), /decompresses beyond/)
+})
+
+test('an xlsx with an absurd column reference drops the cell instead of allocating it', () => {
+  const sheet = `
+    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="AAAAAAAAAA1"><v>1</v></c></row>
+  `
+  const shared = '<sst><si><t>Region</t></si></sst>'
+  const archive = makeZip([
+    ['[Content_Types].xml', '<Types/>'],
+    ['xl/sharedStrings.xml', shared],
+    ['xl/workbook.xml', '<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ['xl/worksheets/sheet1.xml', `<worksheet><sheetData>${sheet}</sheetData></worksheet>`],
+  ])
+  const markdown = convertBuiltin(archive, 'hostile.xlsx')
+  assert.match(markdown, /Region/)
+  assert.doesNotMatch(markdown, /boom/)
+})
+
+test('an EPUB with a malformed percent-escape href still converts', () => {
+  const archive = makeZip([
+    ['mimetype', 'application/epub+zip'],
+    ['META-INF/container.xml', '<container><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'],
+    ['OEBPS/content.opf', `
+      <package><manifest>
+        <item id="ch1" href="chapter%.xhtml" media-type="application/xhtml+xml"/>
+        <item id="ch2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+      </manifest><spine><itemref idref="ch1"/><itemref idref="ch2"/></spine></package>
+    `],
+    ['OEBPS/chapter2.xhtml', '<html><body><h1>Readable</h1></body></html>'],
+  ])
+  const markdown = convertBuiltin(archive, 'book.epub')
+  assert.match(markdown, /Readable/)
+})
+
+test('uppercase hex character references decode', () => {
+  assert.equal(decodeEntities('&#X41;&#x42;'), 'AB')
 })

@@ -9,6 +9,8 @@
  * that was a real bug, and these fixtures keep it fixed.
  */
 
+import { deflateRawSync } from 'node:zlib'
+
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256)
   for (let index = 0; index < 256; index++) {
@@ -26,11 +28,12 @@ function crc32(buffer) {
 }
 
 /**
- * Build a ZIP archive with stored entries.
+ * Build a ZIP archive with stored (or, with `deflate`, deflated) entries.
  * @param {Array<[string, string | Buffer]>} entries - name/content pairs.
+ * @param {{ deflate?: boolean }} options - `deflate` compresses every entry (method 8).
  * @returns {Buffer} a readable ZIP archive.
  */
-export function makeZip(entries) {
+export function makeZip(entries, { deflate = false } = {}) {
   const parts = []
   const central = []
   let offset = 0
@@ -38,31 +41,34 @@ export function makeZip(entries) {
   for (const [name, content] of entries) {
     const nameBytes = Buffer.from(name, 'utf8')
     const data = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8')
+    const payload = deflate ? deflateRawSync(data) : data
     const crc = crc32(data)
 
     const local = Buffer.alloc(30)
     local.writeUInt32LE(0x04034b50, 0)
     local.writeUInt16LE(20, 4)
     local.writeUInt16LE(0x0800, 6)
+    local.writeUInt16LE(deflate ? 8 : 0, 8)
     local.writeUInt32LE(crc, 14)
-    local.writeUInt32LE(data.length, 18)
+    local.writeUInt32LE(payload.length, 18)
     local.writeUInt32LE(data.length, 22)
     local.writeUInt16LE(nameBytes.length, 26)
-    parts.push(local, nameBytes, data)
+    parts.push(local, nameBytes, payload)
 
     const header = Buffer.alloc(46)
     header.writeUInt32LE(0x02014b50, 0)
     header.writeUInt16LE(20, 4)
     header.writeUInt16LE(20, 6)
     header.writeUInt16LE(0x0800, 8)
+    header.writeUInt16LE(deflate ? 8 : 0, 10)
     header.writeUInt32LE(crc, 16)
-    header.writeUInt32LE(data.length, 20)
+    header.writeUInt32LE(payload.length, 20)
     header.writeUInt32LE(data.length, 24)
     header.writeUInt16LE(nameBytes.length, 28)
     header.writeUInt32LE(offset, 42)
     central.push(header, nameBytes)
 
-    offset += local.length + nameBytes.length + data.length
+    offset += local.length + nameBytes.length + payload.length
   }
 
   const centralBytes = Buffer.concat(central)
