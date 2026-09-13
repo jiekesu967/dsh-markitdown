@@ -12,9 +12,13 @@ export declare function builtinSupports(name: string): boolean;
  * Convert raw bytes with the built-in engine.
  * @param bytes - whole file content.
  * @param name - file name used to pick the converter (a URL path is fine).
+ * @param options - optional overrides; `maxEntryBytes` tightens the per-entry
+ * decompression cap for container formats.
  * @returns Markdown text.
  */
-export declare function convertBuiltin(bytes: Buffer, name: string): string;
+export declare function convertBuiltin(bytes: Buffer, name: string, options?: {
+    maxEntryBytes?: number;
+}): string;
 /**
  * Convert a Markdown document served over HTTP by reading it as text.
  * @param body - response text.

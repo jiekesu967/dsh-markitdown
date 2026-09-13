@@ -72,9 +72,11 @@ export function builtinSupports(name: string): boolean {
  * Convert raw bytes with the built-in engine.
  * @param bytes - whole file content.
  * @param name - file name used to pick the converter (a URL path is fine).
+ * @param options - optional overrides; `maxEntryBytes` tightens the per-entry
+ * decompression cap for container formats.
  * @returns Markdown text.
  */
-export function convertBuiltin(bytes: Buffer, name: string): string {
+export function convertBuiltin(bytes: Buffer, name: string, options?: { maxEntryBytes?: number }): string {
   const extension = extensionOf(name)
 
   if (PLAIN.has(extension) && !NATIVE.has(extension)) {
@@ -98,14 +100,14 @@ export function convertBuiltin(bytes: Buffer, name: string): string {
     case 'ipynb':
       return notebookToMarkdown(bytes.toString('utf8'))
     case 'docx':
-      return withZip(bytes, (entries) => docxToMarkdown(requireEntry(entries, 'word/document.xml')))
+      return withZip(bytes, (entries) => docxToMarkdown(requireEntry(entries, 'word/document.xml')), options?.maxEntryBytes)
     case 'xlsx':
     case 'xlsm':
-      return withZip(bytes, (entries) => xlsxToMarkdown(entries))
+      return withZip(bytes, (entries) => xlsxToMarkdown(entries), options?.maxEntryBytes)
     case 'pptx':
-      return withZip(bytes, (entries) => pptxToMarkdown(entries))
+      return withZip(bytes, (entries) => pptxToMarkdown(entries), options?.maxEntryBytes)
     case 'epub':
-      return withZip(bytes, (entries) => epubToMarkdown(entries))
+      return withZip(bytes, (entries) => epubToMarkdown(entries), options?.maxEntryBytes)
     default: {
       const known = KNOWN_UNSUPPORTED[extension]
       if (known !== undefined) {
@@ -135,9 +137,9 @@ export function convertBuiltinResponse(body: Buffer, contentType: string, name: 
   return convertBuiltin(body, name)
 }
 
-function withZip(bytes: Buffer, convert: (entries: Map<string, Buffer>) => string): string {
+function withZip(bytes: Buffer, convert: (entries: Map<string, Buffer>) => string, maxEntryBytes?: number): string {
   try {
-    return normalizeMarkdown(convert(unzip(bytes)))
+    return normalizeMarkdown(convert(unzip(bytes, maxEntryBytes)))
   } catch (error) {
     if (error instanceof ZipError) {
       throw new BuiltinUnsupportedError(`the file is not a readable Office/EPUB container (${error.message})`)
@@ -318,7 +320,9 @@ function sheetToMarkdown(xml: string, shared: readonly string[]): string {
       const inner = cellMatch[2] ?? ''
       const column = columnIndex(/r="([A-Z]+)\d+"/.exec(attributes)?.[1] ?? '')
       const type = /t="([^"]*)"/.exec(attributes)?.[1] ?? ''
-      if (column >= 0) cells[column] = cellValue(type, inner, shared)
+      // A reference beyond XFD cannot come from Excel; honouring it would
+      // allocate a row array sized by the attacker, so the cell is dropped.
+      if (column >= 0 && column <= MAX_COLUMN_INDEX) cells[column] = cellValue(type, inner, shared)
     }
     grid.push(cells)
   }
@@ -342,6 +346,9 @@ function cellValue(type: string, inner: string, shared: readonly string[]): stri
   }
   return decodeEntities(value)
 }
+
+/** Excel's own last column (XFD); references beyond it are corrupt or hostile. */
+const MAX_COLUMN_INDEX = 16383
 
 /** `A`→0, `B`→1, `AA`→26. Returns -1 for an unparsable reference. */
 function columnIndex(letters: string): number {
@@ -406,7 +413,7 @@ function epubToMarkdown(entries: Map<string, Buffer>): string {
     let spineMatch: RegExpExecArray | null
     while ((spineMatch = spinePattern.exec(opf)) !== null) {
       const href = manifest.get(spineMatch[1] as string)
-      if (href !== undefined) order.push(decodeURIComponent(base + href).replace(/^\.\//, ''))
+      if (href !== undefined) order.push(chapterPath(base, href))
     }
   }
 
@@ -419,6 +426,20 @@ function epubToMarkdown(entries: Map<string, Buffer>): string {
   }
   if (chapters.length === 0) throw new BuiltinUnsupportedError('EPUB contains no readable chapters')
   return chapters.join('\n\n')
+}
+
+/**
+ * Resolve a spine href to a container path. A malformed percent escape makes
+ * `decodeURIComponent` throw, which would fail the whole conversion over one
+ * broken link, so the raw spelling is kept instead.
+ */
+function chapterPath(base: string, href: string): string {
+  const joined = `${base}${href}`.replace(/^\.\//, '')
+  try {
+    return decodeURIComponent(joined)
+  } catch {
+    return joined
+  }
 }
 
 // ─── Jupyter notebooks ───────────────────────────────────────────────────────

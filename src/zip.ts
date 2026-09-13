@@ -4,7 +4,8 @@
  * Only what OOXML/EPUB containers need: the end-of-central-directory record, the
  * central directory, and per-entry local headers. Store (0) and deflate (8) are
  * supported; ZIP64 is rejected with an explicit message rather than silently
- * returning corrupt text.
+ * returning corrupt text. Deflated entries are capped in decompressed size, so
+ * a small archive cannot balloon into unbounded memory.
  */
 import { inflateRawSync } from 'node:zlib'
 
@@ -20,12 +21,16 @@ export class ZipError extends Error {
   }
 }
 
+/** Default cap on one decompressed entry: generous for real documents, small enough to bound a bomb. */
+const DEFAULT_MAX_ENTRY_BYTES = 256 * 1024 * 1024
+
 /**
  * Read every non-directory entry of a ZIP container into memory.
  * @param buffer - the raw archive bytes.
+ * @param maxEntryBytes - cap on one entry's decompressed size; a larger entry raises instead of buffering it.
  * @returns entry name (POSIX separators) to decompressed content.
  */
-export function unzip(buffer: Buffer): Map<string, Buffer> {
+export function unzip(buffer: Buffer, maxEntryBytes: number = DEFAULT_MAX_ENTRY_BYTES): Map<string, Buffer> {
   const end = findEndOfCentralDirectory(buffer)
   const count = buffer.readUInt16LE(end + 10)
   const centralSize = buffer.readUInt32LE(end + 12)
@@ -57,7 +62,18 @@ export function unzip(buffer: Buffer): Map<string, Buffer> {
     const localExtraLength = buffer.readUInt16LE(localOffset + 28)
     const start = localOffset + 30 + localNameLength + localExtraLength
     const raw = buffer.subarray(start, Math.min(start + compressedSize, buffer.length))
-    entries.set(name, method === 0 ? Buffer.from(raw) : inflateRawSync(raw))
+    if (method === 0) {
+      entries.set(name, Buffer.from(raw))
+      continue
+    }
+    try {
+      entries.set(name, inflateRawSync(raw, { maxOutputLength: maxEntryBytes }))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') {
+        throw new ZipError(`entry ${name} decompresses beyond the ${maxEntryBytes}-byte limit`)
+      }
+      throw error
+    }
   }
   return entries
 }
