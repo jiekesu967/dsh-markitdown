@@ -135,6 +135,25 @@ progress lines are filtered out of the tool result; only real diagnostics are re
 - MarkItDown performs I/O with the privileges of the current process. Treat untrusted input
   accordingly, and see MarkItDown's own security guidance.
 
+## Resource limits
+
+Converting untrusted documents means the input decides how much work the converter does, so
+every cap is enforced while reading rather than after:
+
+- **Local files** are refused above `maxBytes`, both through the filesystem seam and on the
+  fallback path that runs without it. The size comes from `stat` first, so a small file never
+  reserves the whole cap.
+- **URL responses** are bounded during transfer: a declared `content-length` over the cap is
+  refused without downloading anything, and a streamed body is cancelled mid-transfer once it
+  passes the cap.
+- **Archive entries** carry a decompression limit, so a few-kilobyte ZIP cannot expand into
+  gigabytes. The default is 256 MiB per entry, overridable with `unzip(buffer, maxEntryBytes)`
+  and `convertBuiltin(bytes, name, { maxEntryBytes })`.
+- **Spreadsheet cell references** beyond Excel's own last column (`XFD`) are dropped rather than
+  used to size a row array.
+- **Subprocess output** is capped, and a child terminated for exceeding it says so — instead of
+  being reported as a timeout, which named the wrong cause and the wrong fix.
+
 ## Development
 
 ```sh
