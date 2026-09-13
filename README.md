@@ -162,16 +162,13 @@ npm test           # built-in converter + plugin surface tests
 npm run typecheck  # type check only
 ```
 
-The build resolves DSH packages from `$DSH_CHECKOUT` (a source checkout) or from an installed
-runtime via `$DSH_RUNTIME`, links them into `node_modules`, and compiles with the TypeScript
-compiler API **in a single Node process** — no shell and no child process, so it also runs on
-Windows and in confined environments. `scripts/build.sh` is a thin wrapper for callers that
-expect a shell entry point. The build is reproducible: rebuilding an unchanged tree leaves
-`lib/` byte-identical.
+The build links the DSH packages from `$DSH_CHECKOUT` (a source checkout) or `$DSH_RUNTIME` (an
+installed runtime), then compiles with the TypeScript compiler API in a single Node process — no
+shell, so it also runs on Windows. Rebuilding an unchanged tree leaves `lib/` byte-identical.
 
-Tests need no network, no Python, and no MarkItDown install — the fallback engine is tested
-against synthetic OOXML fixtures built in-process. Each test file runs in its own process; if
-your environment forbids spawning children, `npm run test:inline` runs them all in one.
+Tests need no network, no Python, and no MarkItDown install: the fallback engine is exercised
+against synthetic OOXML fixtures built in-process. If your environment forbids spawning child
+processes, `npm run test:inline` runs them all in one.
 
 ```
 src/index.ts     plugin wiring: config, tool definition, execute path
@@ -181,23 +178,6 @@ src/text.ts      entity decoding, HTML→Markdown, delimited parsing
 src/zip.ts       minimal ZIP reader for OOXML/EPUB containers
 src/exec.ts      subprocess plumbing with honest failure reporting
 ```
-
-### Releasing
-
-```sh
-npm run build
-npm test
-npm pack
-GH_PAT=<token with repo scope> npm run release
-npm publish
-```
-
-`scripts/release.mjs` creates the GitHub Release for the version in `package.json`, attaches the
-packed tarball, and applies repository topics. It is idempotent — re-running replaces the asset on
-the existing release. Both `owner/repo` (read from `.git/config`) and the token (read from the
-environment) are supplied at runtime, so neither is hard-coded and the token never reaches a file.
-
-If the repository remote is SSH, no GitHub token is needed at all for the push.
 
 ## Credits
 
