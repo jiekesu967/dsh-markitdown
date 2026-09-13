@@ -3,3 +3,6 @@
 node_modules/
 *.tsbuildinfo
 *.tgz
+
+# npm cache the release tooling points at, so it stays inside the workspace.
+.npm-cache/
