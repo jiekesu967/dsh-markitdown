@@ -367,9 +367,11 @@ async function convertWithBuiltin(
 }
 
 /**
- * Read at most `maxBytes` + 1 bytes from a local file without the filesystem
- * seam. Mirrors the seam path's cap so the fallback cannot be pushed into
- * buffering an arbitrarily large file the configured limit would have refused.
+ * Read a local file without the filesystem seam, refusing anything above
+ * `maxBytes` rather than buffering it. Mirrors the seam path's cap so the
+ * fallback cannot be pushed into reading a file the configured limit would have
+ * refused. The size comes from `stat` first, so the allocation matches the file
+ * rather than the cap.
  * @param path - absolute process path.
  * @param maxBytes - configured input cap.
  * @returns the bytes read; at most `maxBytes` of them.
