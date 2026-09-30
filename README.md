@@ -58,6 +58,21 @@ says so and names the command that unlocks full fidelity.
 
 ## Install
 
+### Requirements
+
+DeepSeek Harness `0.1.5-rc.1` or newer on either release line — **0.1.x and 0.2.x are both
+supported**:
+
+```jsonc
+"engines": { "dsh": ">=0.1.5-rc.1 <0.3.0-0" }
+```
+
+Verified against harness `0.1.5-rc.2` and `0.2.0-rc.2`. The 0.2 line moved `@deepseek-ai/dsh-tools`
+to `~3.18.4` and cordis to `~4.0.4`; neither affected this plugin's code, which is why the runtime
+is identical across both lines.
+
+Node `^22.19.0 || >=24.0.0`.
+
 ### From GitHub
 
 ```sh
@@ -72,7 +87,7 @@ Download `dsh-markitdown-<version>.tgz` from
 [Releases](https://github.com/jiekesu967/dsh-markitdown/releases), then:
 
 ```sh
-dsh plugin --profile web add ./dsh-markitdown-0.1.0.tgz
+dsh plugin --profile web add ./dsh-markitdown-<version>.tgz
 ```
 
 ### From npm

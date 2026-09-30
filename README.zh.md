@@ -56,6 +56,19 @@ markitdown({ input: "https://example.com/spec.html" })
 
 ## 安装
 
+### 版本要求
+
+需要 DeepSeek Harness `0.1.5-rc.1` 或更新，**0.1.x 与 0.2.x 两条发布线都支持**：
+
+```jsonc
+"engines": { "dsh": ">=0.1.5-rc.1 <0.3.0-0" }
+```
+
+已在 `0.1.5-rc.2` 与 `0.2.0-rc.2` 上验证。0.2 线把 `@deepseek-ai/dsh-tools` 提到 `~3.18.4`、
+cordis 提到 `~4.0.4`，但都没有触及本插件用到的接口，所以两条线上的运行时代码完全一致。
+
+Node 要求 `^22.19.0 || >=24.0.0`。
+
 ### 从 GitHub 安装
 
 ```sh
@@ -70,7 +83,7 @@ dsh plugin --profile web add github:jiekesu967/dsh-markitdown
 `dsh-markitdown-<version>.tgz`，然后：
 
 ```sh
-dsh plugin --profile web add ./dsh-markitdown-0.1.0.tgz
+dsh plugin --profile web add ./dsh-markitdown-<version>.tgz
 ```
 
 ### 从 npm 安装
