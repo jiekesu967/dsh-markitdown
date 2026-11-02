@@ -11,6 +11,8 @@ export interface Config {
     engine: EngineChoice;
     /** Explicit `markitdown` executable, overriding PATH lookup. */
     command?: string | undefined;
+    /** Extra environment variables for the external engine; each one wins over the built-in UTF-8 defaults. */
+    env: Record<string, string>;
     /** Package spec `uvx` runs; the extras are what make Office/PDF formats work. */
     uvxPackage: string;
     /** Per-conversion deadline in milliseconds. */
@@ -25,25 +27,27 @@ export interface Config {
     extraArgs: string[];
 }
 /** Configuration schema; every field is optional in `cordis.patch.yml`. */
-export declare const Config: z<Schemastery.ObjectS<{
-    engine: z<string, string>;
-    command: z<string, string>;
-    uvxPackage: z<string, string>;
-    timeoutMs: z<number, number>;
-    maxChars: z<number, number>;
-    maxBytes: z<number, number>;
-    allowUrls: z<boolean, boolean>;
-    extraArgs: z<string[], string[]>;
-}>, Schemastery.ObjectT<{
-    engine: z<string, string>;
-    command: z<string, string>;
-    uvxPackage: z<string, string>;
-    timeoutMs: z<number, number>;
-    maxChars: z<number, number>;
-    maxBytes: z<number, number>;
-    allowUrls: z<boolean, boolean>;
-    extraArgs: z<string[], string[]>;
-}>>;
+export declare const Config: z<Schemastery.ObjectS<NoInfer<{
+    engine: z<string, string, "defined">;
+    command: z<string, string, "plain">;
+    env: z<Record<string, string>>;
+    uvxPackage: z<string, string, "defined">;
+    timeoutMs: z<number, number, "defined">;
+    maxChars: z<number, number, "defined">;
+    maxBytes: z<number, number, "defined">;
+    allowUrls: z<boolean, boolean, "defined">;
+    extraArgs: z<string[], string[], "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    engine: z<string, string, "defined">;
+    command: z<string, string, "plain">;
+    env: z<Record<string, string>>;
+    uvxPackage: z<string, string, "defined">;
+    timeoutMs: z<number, number, "defined">;
+    maxChars: z<number, number, "defined">;
+    maxBytes: z<number, number, "defined">;
+    allowUrls: z<boolean, boolean, "defined">;
+    extraArgs: z<string[], string[], "defined">;
+}>>, "plain">;
 /**
  * Register the conversion tool.
  * @param ctx - the plugin context.

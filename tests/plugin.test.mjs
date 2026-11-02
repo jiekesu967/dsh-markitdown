@@ -297,30 +297,34 @@ test('a process whose output exceeds the capture limit reports that, not a timeo
   )
 })
 
+/** Prints the environment a child actually received, so the handoff can be asserted. */
+const ENV_PROBE =
+  'process.stdout.write(JSON.stringify({' +
+  ' utf8: process.env.PYTHONUTF8 ?? null,' +
+  ' io: process.env.PYTHONIOENCODING ?? null,' +
+  ' mark: process.env.MARKITDOWN_TEST_ENV ?? null }))\n'
+
 test('the markitdown CLI engine hands PYTHON_ENV to its child process', async () => {
-  // Regression guard for the CLI branch, which used to pass `env: undefined`.
-  // On a Windows ANSI code page that is not UTF-8 the CLI then encoded stdout
-  // with the local code page (cp1251, cp936, …) while exec.js decoded it as
-  // UTF-8: every non-ASCII character became U+FFFD, exit code 0, no warning.
-  // The parent must not already carry these variables, or run() would inherit
-  // them and the assertion below would hold even with the bug present.
+  // Regression guard for issue #2: the CLI branch used to pass `env: undefined`, so
+  // on a Windows ANSI code page that is not UTF-8 the CLI encoded stdout with the
+  // local code page (cp936, cp1251, …) while exec.js decoded it as UTF-8 — every
+  // non-ASCII character became U+FFFD, the conversion still exited 0, and nothing
+  // warned. Clear the parent's own variables first, or the child would inherit them
+  // through `process.env` and this assertion would hold even with the bug present.
   const saved = { PYTHONUTF8: process.env.PYTHONUTF8, PYTHONIOENCODING: process.env.PYTHONIOENCODING }
   delete process.env.PYTHONUTF8
   delete process.env.PYTHONIOENCODING
   const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-env-'))
   try {
     const probe = join(directory, 'echo-env.mjs')
-    await writeFile(
-      probe,
-      'process.stdout.write(JSON.stringify({ utf8: process.env.PYTHONUTF8 ?? null, io: process.env.PYTHONIOENCODING ?? null }))\n',
-      'utf8',
-    )
+    await writeFile(probe, ENV_PROBE, 'utf8')
     // Node stands in for the CLI: answering `--help` is all the availability probe asks.
     const chain = new EngineChain({ choice: 'markitdown', command: process.execPath, probeTimeoutMs: 60_000 })
     const engine = await chain.resolve()
     assert.equal(engine.id, 'markitdown')
+    assert.equal(engine.internal, false)
     const { markdown } = await convertExternal(engine, probe, { timeoutMs: 60_000 })
-    assert.deepEqual(JSON.parse(markdown), { utf8: '1', io: 'utf-8' })
+    assert.deepEqual(JSON.parse(markdown), { utf8: '1', io: 'utf-8', mark: null })
   } finally {
     for (const [name, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[name]
@@ -329,3 +333,63 @@ test('the markitdown CLI engine hands PYTHON_ENV to its child process', async ()
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+test('configured env overrides PYTHON_ENV per key on an external engine', async () => {
+  const chain = new EngineChain({
+    choice: 'markitdown',
+    command: process.execPath,
+    probeTimeoutMs: 60_000,
+    env: { PYTHONUTF8: '0', MARKITDOWN_TEST_ENV: 'from-config' },
+  })
+  const engine = await chain.resolve()
+  // The user's value wins for the key it names; the other UTF-8 setting survives.
+  assert.deepEqual(engine.env, {
+    PYTHONUTF8: '0',
+    PYTHONIOENCODING: 'utf-8',
+    MARKITDOWN_TEST_ENV: 'from-config',
+  })
+})
+
+test('the env config field is optional and validates its values', () => {
+  assert.deepEqual(Config({}).env, {}, 'the field stays optional: unset means no overrides')
+  const configured = Config({ env: { PYTHONUTF8: '1', MARKITDOWN_TEST_ENV: 'x' } })
+  assert.deepEqual(configured.env, { PYTHONUTF8: '1', MARKITDOWN_TEST_ENV: 'x' })
+  assert.throws(() => Config({ env: { PYTHONUTF8: 1 } }), /expected string/)
+})
+
+test('a configured env never reaches the in-process builtin engine', async () => {
+  const chain = new EngineChain({ choice: 'builtin', probeTimeoutMs: 5_000, env: { MARKITDOWN_TEST_ENV: 'x' } })
+  const engine = await chain.resolve()
+  assert.equal(engine.internal, true)
+  assert.equal(engine.env, undefined, 'the builtin engine spawns no child, so it has no environment to set')
+})
+
+test('the env config field reaches the external engine end to end', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-config-env-'))
+  try {
+    const probe = join(directory, 'echo-env.mjs')
+    await writeFile(probe, ENV_PROBE, 'utf8')
+    let definition
+    const context = {
+      effect: (fn) => fn(),
+      tools: { register: (registered) => { definition = registered; return () => {} } },
+      get: () => undefined,
+    }
+    apply(context, Config({
+      engine: 'markitdown',
+      command: process.execPath,
+      env: { MARKITDOWN_TEST_ENV: 'from-config', PYTHONUTF8: '0' },
+      timeoutMs: 30_000,
+    }))
+    // `node echo-env.mjs` stands in for the CLI, so the configured environment is
+    // observed by a real child process launched through the real conversion path.
+    const value = await definition.execute({ input: probe }, exec())
+    assert.match(value.engine, /^markitdown CLI /)
+    assert.match(value.markdown, /"mark":"from-config"/)
+    assert.match(value.markdown, /"utf8":"0"/)
+    assert.match(value.markdown, /"io":"utf-8"/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+

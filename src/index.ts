@@ -45,6 +45,8 @@ export interface Config {
   engine: EngineChoice
   /** Explicit `markitdown` executable, overriding PATH lookup. */
   command?: string | undefined
+  /** Extra environment variables for the external engine; each one wins over the built-in UTF-8 defaults. */
+  env: Record<string, string>
   /** Package spec `uvx` runs; the extras are what make Office/PDF formats work. */
   uvxPackage: string
   /** Per-conversion deadline in milliseconds. */
@@ -63,6 +65,10 @@ export interface Config {
 export const Config = z.object({
   engine: z.string().default('auto'),
   command: z.string(),
+  // `z.dict` infers a type that names an internal `Dict` alias from cosmokit, which
+  // declaration emit cannot reference portably (TS2742). Pinning the public type to
+  // the equivalent `Record<string, string>` keeps the emitted `.d.ts` buildable.
+  env: z.dict(z.string(), z.string()).default({}) as z<Record<string, string>>,
   uvxPackage: z.string().default('markitdown[all]'),
   timeoutMs: z.number().default(120_000),
   maxChars: z.number().default(120_000),
@@ -94,6 +100,7 @@ export function apply(ctx: Context, config: Config): void {
     choice: config.engine,
     command: config.command,
     uvxPackage: config.uvxPackage,
+    env: config.env,
     probeTimeoutMs: Math.min(config.timeoutMs, 60_000),
   })
   /** One-off chains for per-call engine overrides; the configured chain keeps its cache. */
@@ -110,6 +117,7 @@ export function apply(ctx: Context, config: Config): void {
         choice,
         command: config.command,
         uvxPackage: config.uvxPackage,
+        env: config.env,
         probeTimeoutMs: Math.min(config.timeoutMs, 60_000),
       })
       overrides.set(choice, existing)

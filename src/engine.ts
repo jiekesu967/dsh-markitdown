@@ -48,6 +48,7 @@ export class EngineChain {
   readonly #command: string | undefined
   readonly #uvxPackage: string
   readonly #probeTimeoutMs: number
+  readonly #env: Record<string, string>
   #cached: ResolvedEngine | undefined
   #log: string[] = []
 
@@ -56,12 +57,15 @@ export class EngineChain {
     command?: string | undefined
     /** Package spec `uvx` should run; the extras are what make Office formats work. */
     uvxPackage?: string | undefined
+    /** Extra environment for external engines; overrides the built-in UTF-8 settings per key. */
+    env?: Record<string, string> | undefined
     probeTimeoutMs: number
   }) {
     this.#choice = options.choice
     this.#command = options.command
     this.#uvxPackage = options.uvxPackage ?? 'markitdown[all]'
     this.#probeTimeoutMs = options.probeTimeoutMs
+    this.#env = options.env ?? {}
   }
 
   /** Probe transcript of the most recent resolution, for diagnostics. */
@@ -72,6 +76,18 @@ export class EngineChain {
   /** Forget the cached engine so the next call re-probes. */
   invalidate(): void {
     this.#cached = undefined
+  }
+
+  /**
+   * Environment handed to an external engine.
+   *
+   * Every external engine is a Python entry point, so all of them get the UTF-8
+   * settings; configured overrides are layered on top and win per key, so a user
+   * can repair an environment this plugin did not predict without patching files
+   * under `node_modules`.
+   */
+  #externalEnv(): Record<string, string> {
+    return { ...PYTHON_ENV, ...this.#env }
   }
 
   /**
@@ -124,12 +140,11 @@ export class EngineChain {
           return undefined
         }
         this.#log.push(`markitdown: ${found.path}`)
-        // The CLI is a Python entry point, so it needs the same environment the
-        // other two Python-backed engines already pass: without PYTHONUTF8 its
-        // stdout is encoded with the system ANSI code page (cp1251, cp936, …)
-        // while exec.js decodes it as UTF-8 — every non-ASCII character becomes
-        // U+FFFD and the conversion still exits 0.
-        return { id, label: `markitdown CLI (${found.path})`, argv: [found.path], env: PYTHON_ENV, internal: false }
+        // The CLI is a Python entry point too: without PYTHONUTF8 it encodes its
+        // stdout with the system ANSI code page (cp936, cp1251, …) while exec.js
+        // decodes it as UTF-8, so every non-ASCII character becomes U+FFFD and the
+        // conversion still exits 0. It needs the same environment as the others.
+        return { id, label: `markitdown CLI (${found.path})`, argv: [found.path], env: this.#externalEnv(), internal: false }
       }
 
       case 'uvx': {
@@ -147,7 +162,7 @@ export class EngineChain {
           id,
           label: `uvx ${this.#uvxPackage} (${found.path})`,
           argv: [found.path, '--from', this.#uvxPackage, 'markitdown'],
-          env: PYTHON_ENV,
+          env: this.#externalEnv(),
           internal: false,
         }
       }
@@ -169,7 +184,7 @@ export class EngineChain {
             id,
             label: `python -m markitdown (${found.path})`,
             argv: [found.path, '-m', 'markitdown'],
-            env: PYTHON_ENV,
+            env: this.#externalEnv(),
             internal: false,
           }
         }

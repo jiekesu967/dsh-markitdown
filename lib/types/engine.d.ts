@@ -30,6 +30,8 @@ export declare class EngineChain {
         command?: string | undefined;
         /** Package spec `uvx` should run; the extras are what make Office formats work. */
         uvxPackage?: string | undefined;
+        /** Extra environment for external engines; overrides the built-in UTF-8 settings per key. */
+        env?: Record<string, string> | undefined;
         probeTimeoutMs: number;
     });
     /** Probe transcript of the most recent resolution, for diagnostics. */
