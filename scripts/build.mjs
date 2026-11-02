@@ -5,8 +5,8 @@
  * `scripts/build.sh` is a thin wrapper over this file; running the build here
  * keeps it working on Windows, in CI, and in confined environments where
  * spawning a child process with piped stdio is not permitted. TypeScript is
- * driven through its own compiler API rather than as a child process, so no
- * process is spawned at all.
+ * driven through its own compiler API rather than as a child process, so the
+ * compile step spawns no process at all.
  *
  * TypeScript is taken from $DSH_TSC (a path to typescript.js), then the project,
  * then a `.tools/typescript` beside the workspace, then the DSH checkout.
