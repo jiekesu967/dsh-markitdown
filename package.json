@@ -1,6 +1,6 @@
 {
   "name": "dsh-markitdown",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Microsoft MarkItDown as a DeepSeek Harness tool: convert PDF, Word, Excel, PowerPoint, HTML, CSV, EPUB, or a URL into Markdown the model can read.",
   "license": "MIT",
   "type": "module",
@@ -60,8 +60,8 @@
   "devDependencies": {
     "@deepseek-ai/dsh-agent": ">=0.1.5-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-fs": ">=0.1.5-rc.1 <0.3.0-0",
-    "@types/node": "^22.17.2",
-    "typescript": "^5.9.2"
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
