@@ -67,11 +67,20 @@ supported**:
 "engines": { "dsh": ">=0.1.5-rc.1 <0.3.0-0" }
 ```
 
-Verified against harness `0.1.5-rc.2` and `0.2.0-rc.2`. The 0.2 line moved `@deepseek-ai/dsh-tools`
-to `~3.18.4` and cordis to `~4.0.4`; neither affected this plugin's code, which is why the runtime
-is identical across both lines.
+Verified against harness `0.1.5-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.5`, and `0.2.2-alpha.2`: the
+build, the type check, and the test suite pass on each, and on `0.2.1-rc.5` the plugin was also
+mounted from a real profile, where the `markitdown` tool registered and converted a file. The 0.2
+line raised the harness's own schemastery dependency to `~3.18.4` (0.2.1: `~3.18.5`) and cordis to
+`~4.0.4` (0.2.1: `~4.0.5`); neither affected this plugin, which only binds `tools.register` and the
+schemastery DSL — its compiled output is identical across these versions.
+
+The range deliberately admits prereleases: DSH compares `engines.dsh` with prerelease semantics, so
+each 0.2.x prerelease is covered without pinning it.
 
 Node `^22.19.0 || >=24.0.0`.
+
+Every install below goes through `dsh plugin`, which runs pnpm, so make sure `pnpm` is on your
+`PATH` (`npm install -g pnpm`).
 
 ### From GitHub
 
@@ -106,7 +115,8 @@ one of:
 
 ```sh
 pip install "markitdown[all]"     # or
-winget install astral-sh.uv       # then `uvx markitdown` works with no install
+winget install astral-sh.uv       # Windows: then `uvx markitdown` works with no install
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Linux / macOS
 ```
 
 ## Configuration
@@ -120,6 +130,7 @@ Every field is optional; defaults are shown.
     engine: auto              # auto | markitdown | uvx | python | builtin
     uvxPackage: "markitdown[all]"   # slim it to "markitdown[pdf,docx,pptx,xlsx]"
     command: ""               # explicit markitdown executable, overrides PATH
+    env: {}                   # extra environment variables for the external engine
     timeoutMs: 120000         # per-conversion deadline
     maxChars: 120000          # inline result cap; longer output is truncated
     maxBytes: 67108864        # bytes the built-in engine will read
@@ -133,6 +144,13 @@ fails with the reason and the fix, rather than quietly converting with something
 
 A first `uvx` run downloads MarkItDown and its dependencies (about a minute). Package-manager
 progress lines are filtered out of the tool result; only real diagnostics are reported.
+
+`env` is a map of extra environment variables handed to the external engine's conversion process —
+the CLI, `uvx`, and `python` engines alike. It is layered over the UTF-8 settings the plugin already
+passes (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`), and your value wins per key. It exists so a locale
+that still corrupts output can be fixed in configuration instead of by patching files under
+`node_modules`, and it is also how to hand MarkItDown a proxy or `SSL_CERT_FILE` without changing
+the environment of the whole harness.
 
 ## Behaviour worth knowing
 
@@ -178,8 +196,10 @@ npm run typecheck  # type check only
 ```
 
 The build links the DSH packages from `$DSH_CHECKOUT` (a source checkout) or `$DSH_RUNTIME` (an
-installed runtime), then compiles with the TypeScript compiler API in a single Node process — no
-shell, so it also runs on Windows. Rebuilding an unchanged tree leaves `lib/` byte-identical.
+installed runtime). With neither set it finds the runtime itself — the `dsh` on your `PATH`, this
+Node installation's global prefix, or `npm root -g` — so plain `npm run build` works with no setup.
+It then compiles with the TypeScript compiler API in a single Node process — no shell, so it also
+runs on Windows. Rebuilding an unchanged tree leaves `lib/` byte-identical.
 
 Tests need no network, no Python, and no MarkItDown install: the fallback engine is exercised
 against synthetic OOXML fixtures built in-process. If your environment forbids spawning child

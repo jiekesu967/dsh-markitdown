@@ -64,10 +64,19 @@ markitdown({ input: "https://example.com/spec.html" })
 "engines": { "dsh": ">=0.1.5-rc.1 <0.3.0-0" }
 ```
 
-已在 `0.1.5-rc.2` 与 `0.2.0-rc.2` 上验证。0.2 线把 `@deepseek-ai/dsh-tools` 提到 `~3.18.4`、
-cordis 提到 `~4.0.4`，但都没有触及本插件用到的接口，所以两条线上的运行时代码完全一致。
+已在 `0.1.5-rc.2`、`0.2.0-rc.2`、`0.2.1-rc.5` 与 `0.2.2-alpha.2` 上验证：每条线上构建、类型检查与
+测试套件均通过；并且在 `0.2.1-rc.5` 上从真实 profile 完成了一次挂载，`markitdown` 工具成功注册并
+转换了文件。0.2 线把 harness 自身的 schemastery 依赖提到 `~3.18.4`（0.2.1 为 `~3.18.5`）、cordis
+提到 `~4.0.4`（0.2.1 为 `~4.0.5`），但都没有触及本插件——本插件只绑定 `tools.register` 与
+schemastery DSL，上述版本上的编译产物完全一致。
+
+该范围有意允许预发布版本：DSH 会按预发布语义比较 `engines.dsh`，因此无需为每个 0.2.x 预发布版
+单独收紧范围。
 
 Node 要求 `^22.19.0 || >=24.0.0`。
+
+下文所有安装方式都经由 `dsh plugin`，它调用 pnpm，因此请确保 `pnpm` 在 `PATH` 上
+（`npm install -g pnpm`）。
 
 ### 从 GitHub 安装
 
@@ -100,7 +109,8 @@ npm 包由本仓库发布：<https://www.npmjs.com/package/dsh-markitdown>。
 
 ```sh
 pip install "markitdown[all]"     # 或者
-winget install astral-sh.uv       # 之后 `uvx markitdown` 免安装可用
+winget install astral-sh.uv       # Windows：之后 `uvx markitdown` 免安装可用
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Linux / macOS
 ```
 
 ## 配置
@@ -114,6 +124,7 @@ winget install astral-sh.uv       # 之后 `uvx markitdown` 免安装可用
     engine: auto              # auto | markitdown | uvx | python | builtin
     uvxPackage: "markitdown[all]"   # 可精简为 "markitdown[pdf,docx,pptx,xlsx]"
     command: ""               # 显式指定 markitdown 可执行文件，覆盖 PATH 查找
+    env: {}                   # 传给外部引擎的额外环境变量
     timeoutMs: 120000         # 单次转换超时
     maxChars: 120000          # 内联返回上限，超出则截断
     maxBytes: 67108864        # 内置引擎读取的字节上限
@@ -127,6 +138,12 @@ winget install astral-sh.uv       # 之后 `uvx markitdown` 免安装可用
 
 首次 `uvx` 运行会下载 MarkItDown 及其依赖（约一分钟）。包管理器的进度输出会被过滤掉，
 只有真正的诊断信息才会进入工具结果。
+
+`env` 是一个"变量名 → 值"的映射，会传给外部引擎的转换进程（CLI、`uvx`、`python` 三条路径都
+一样）。它叠加在插件已经传入的 UTF-8 设置（`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`）之上，同名
+键以你的值为准。它的用途是：当某个区域设置仍然弄坏输出时，可以只改配置自救，而不必去改
+`node_modules` 下的文件；也可以用它给 MarkItDown 传代理或 `SSL_CERT_FILE`，而不必改变整个
+harness 进程的环境。
 
 ## 值得知道的行为
 
@@ -147,9 +164,10 @@ npm test           # 内置转换器 + 插件接口测试
 npm run typecheck  # 只做类型检查
 ```
 
-构建从 `$DSH_CHECKOUT`（源码检出）或 `$DSH_RUNTIME`（已安装运行时）解析并链接 DSH 包，
-然后在单个 Node 进程内通过 TypeScript 编译器 API 完成编译——不依赖 shell，Windows 上同样可用。
-源码未变时重新构建，`lib/` 逐字节一致。
+构建从 `$DSH_CHECKOUT`（源码检出）或 `$DSH_RUNTIME`（已安装运行时）解析并链接 DSH 包；两者都未
+设置时会自行发现运行时——`PATH` 上的 `dsh`、当前 Node 安装的全局前缀，或 `npm root -g`——因此
+直接 `npm run build` 即可。编译在单个 Node 进程内通过 TypeScript 编译器 API 完成——不依赖 shell，
+Windows 上同样可用。源码未变时重新构建，`lib/` 逐字节一致。
 
 测试不需要网络、Python 或 MarkItDown：内置引擎用进程内合成出来的 OOXML 夹具测试。
 若环境不允许创建子进程，用 `npm run test:inline` 在同进程内跑完。
@@ -162,8 +180,6 @@ src/text.ts      实体解码、HTML→Markdown、分隔符解析
 src/zip.ts       OOXML/EPUB 用的最小 ZIP 读取器
 src/exec.ts      子进程封装，失败原因如实上报
 ```
-
-如果仓库 remote 配的是 SSH，那么推送这一步完全不需要任何 GitHub token。
 
 ## 致谢
 
