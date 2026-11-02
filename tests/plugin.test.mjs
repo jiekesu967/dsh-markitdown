@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { apply, Config } from '../lib/index.js'
-import { EngineChain, filterEngineNoise } from '../lib/engine.js'
+import { EngineChain, convertExternal, filterEngineNoise } from '../lib/engine.js'
 
 /** A context double exposing exactly the seams the plugin uses. */
 function harness(options = {}) {
@@ -295,4 +295,37 @@ test('a process whose output exceeds the capture limit reports that, not a timeo
       }),
     (error) => /output capture limit/.test(error.message) && !/deadline/.test(error.message),
   )
+})
+
+test('the markitdown CLI engine hands PYTHON_ENV to its child process', async () => {
+  // Regression guard for the CLI branch, which used to pass `env: undefined`.
+  // On a Windows ANSI code page that is not UTF-8 the CLI then encoded stdout
+  // with the local code page (cp1251, cp936, …) while exec.js decoded it as
+  // UTF-8: every non-ASCII character became U+FFFD, exit code 0, no warning.
+  // The parent must not already carry these variables, or run() would inherit
+  // them and the assertion below would hold even with the bug present.
+  const saved = { PYTHONUTF8: process.env.PYTHONUTF8, PYTHONIOENCODING: process.env.PYTHONIOENCODING }
+  delete process.env.PYTHONUTF8
+  delete process.env.PYTHONIOENCODING
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-env-'))
+  try {
+    const probe = join(directory, 'echo-env.mjs')
+    await writeFile(
+      probe,
+      'process.stdout.write(JSON.stringify({ utf8: process.env.PYTHONUTF8 ?? null, io: process.env.PYTHONIOENCODING ?? null }))\n',
+      'utf8',
+    )
+    // Node stands in for the CLI: answering `--help` is all the availability probe asks.
+    const chain = new EngineChain({ choice: 'markitdown', command: process.execPath, probeTimeoutMs: 60_000 })
+    const engine = await chain.resolve()
+    assert.equal(engine.id, 'markitdown')
+    const { markdown } = await convertExternal(engine, probe, { timeoutMs: 60_000 })
+    assert.deepEqual(JSON.parse(markdown), { utf8: '1', io: 'utf-8' })
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+    await rm(directory, { recursive: true, force: true })
+  }
 })
