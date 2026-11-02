@@ -4,7 +4,7 @@
  * context double, so they exercise the real execute path without a live harness.
  */
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -393,3 +393,71 @@ test('the env config field reaches the external engine end to end', async () => 
   }
 })
 
+/** Create a POSIX shebang script that exits the way a broken probe target does. */
+async function fakeExecutable(directory, name, source) {
+  const path = join(directory, name)
+  await writeFile(path, `#!/usr/bin/env node\n${source}\n`, 'utf8')
+  await chmod(path, 0o755)
+  return path
+}
+
+test(
+  'the python engine is rejected when the interpreter has no markitdown module',
+  { skip: process.platform === 'win32' ? 'POSIX shebang fixtures' : false },
+  async () => {
+    // Regression guard: the probe used to accept any non-zero exit as proof of an
+    // install, so `python -m markitdown --help` exiting 1 with "No module named
+    // markitdown" resolved the python engine and every conversion then failed
+    // instead of falling back. The stand-in interpreters are first on PATH, so
+    // which() must find them.
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-py-'))
+    const savedPath = process.env.PATH
+    try {
+      for (const name of ['python', 'python3']) {
+        await fakeExecutable(directory, name, 'process.stderr.write("No module named markitdown\\n")\nprocess.exit(1)')
+      }
+      process.env.PATH = `${directory}:${savedPath ?? ''}`
+      const chain = new EngineChain({ choice: 'python', probeTimeoutMs: 30_000 })
+      await assert.rejects(
+        () => chain.resolve(new AbortController().signal),
+        (error) => /not available/.test(error.message) && /pip install/.test(error.message),
+      )
+    } finally {
+      if (savedPath === undefined) delete process.env.PATH
+      else process.env.PATH = savedPath
+      await rm(directory, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  'auto falls back to the built-in converter when no real engine works',
+  { skip: process.platform === 'win32' ? 'POSIX shebang fixtures' : false },
+  async () => {
+    // The user-visible symptom of the bug above: on a machine with Python but no
+    // MarkItDown every conversion failed instead of using the built-in engine.
+    const directory = await mkdtemp(join(tmpdir(), 'dsh-markitdown-auto-'))
+    const savedPath = process.env.PATH
+    try {
+      // A sandbox PATH holding only what the probe needs, so the host cannot
+      // supply a real markitdown/uvx and make the assertion flaky.
+      await symlink(process.execPath, join(directory, 'node'))
+      await symlink('/usr/bin/which', join(directory, 'which'))
+      for (const name of ['markitdown', 'uvx', 'python', 'python3']) {
+        await fakeExecutable(directory, name, 'process.exit(1)')
+      }
+      process.env.PATH = directory
+      const chain = new EngineChain({ choice: 'auto', probeTimeoutMs: 30_000 })
+      const engine = await chain.resolve(new AbortController().signal)
+      assert.equal(engine.id, 'builtin')
+      assert.equal(engine.internal, true)
+      for (const name of ['markitdown', 'uvx', 'python']) {
+        assert.match(chain.log.join('\n'), new RegExp(`^${name}:`, 'm'), `the probe log should record why ${name} was skipped`)
+      }
+    } finally {
+      if (savedPath === undefined) delete process.env.PATH
+      else process.env.PATH = savedPath
+      await rm(directory, { recursive: true, force: true })
+    }
+  },
+)
