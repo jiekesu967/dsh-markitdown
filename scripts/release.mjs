@@ -117,11 +117,13 @@ conversion, install \`markitdown[all]\` or \`uv\`.
 - Subprocesses run with \`shell: false\`; only real executables are accepted.
 - \`env\` hands extra environment variables to the external engine, so a locale or proxy fix
   needs no patching under \`node_modules\`.
+- An engine probe must exit 0 before it is selected, so a machine that has Python but no
+  MarkItDown falls back to the built-in converter instead of failing every conversion.
 - Every Python-backed engine gets \`PYTHONUTF8=1\`/\`PYTHONIOENCODING=utf-8\`, so non-ASCII
   output is no longer corrupted on a Windows ANSI code page that is not UTF-8.
 - A missing input fails before any subprocess starts, with one clear sentence.
 - Package-manager download chatter is filtered out of the tool result.
-- 48 tests over synthetic OOXML fixtures — no network, Python, or MarkItDown required.
+- 50 tests over synthetic OOXML fixtures — no network, Python, or MarkItDown required.
 
 **Full Changelog**: https://github.com/${owner}/${repo}/commits/${tag}
 `
