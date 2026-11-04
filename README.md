@@ -4,10 +4,12 @@
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![stars](https://img.shields.io/github/stars/jiekesu967/dsh-markitdown)](https://github.com/jiekesu967/dsh-markitdown)
 
-[Microsoft MarkItDown](https://github.com/microsoft/markitdown) as a DeepSeek Harness tool.
-One tool, `markitdown`, turns a document into Markdown the model can actually read.
+[English](README.en.md) | 中文
 
-The model calls it before reading any non-text file:
+把 [Microsoft MarkItDown](https://github.com/microsoft/markitdown) 包装成 DeepSeek Harness 的模型工具。
+一个工具 `markitdown`，把文档变成模型真正读得懂的 Markdown。
+
+模型在读取任何非文本文件之前调用它：
 
 ```
 markitdown({ input: "reports/q3.pdf" })
@@ -15,211 +17,189 @@ markitdown({ input: "data/forecast.xlsx", output: "notes/forecast.md" })
 markitdown({ input: "https://example.com/spec.html" })
 ```
 
-## Why this exists
+## 为什么做这个
 
-A text-only model cannot open a PDF, a spreadsheet, or a slide deck. MarkItDown solves
-that well — but it is a Python package, and a harness plugin needs to reach it without
-assuming a specific Python environment, a specific install layout, or that anything is
-installed at all.
+纯文本模型打不开 PDF、表格和幻灯片。MarkItDown 把这件事做得很好——但它是 Python 包，
+而一个 harness 插件不能假定某种 Python 环境、某种安装布局，更不能假定机器上装了什么。
 
-So this plugin does not reimplement MarkItDown and does not vendor it. It looks for a
-real installation, drives it, and falls back to a built-in converter when there is none:
+所以本插件既不重新实现 MarkItDown，也不内嵌它：它**查找真实的安装并驱动它**，
+找不到时退回一个自带的内置转换器。
 
-| Order | Engine | What it is | Needs |
+| 顺序 | 引擎 | 是什么 | 需要 |
 | --- | --- | --- | --- |
-| 1 | `markitdown` | Microsoft's own CLI | `pip install "markitdown[all]"` |
-| 2 | `uvx markitdown` | the real package, run without installing it | [uv](https://docs.astral.sh/uv/) |
-| 3 | `python -m markitdown` | a Python that already has the package | Python 3.10+ with MarkItDown |
-| 4 | built-in | a dependency-free converter shipped in this plugin | nothing |
+| 1 | `markitdown` | 微软官方 CLI | `pip install "markitdown[all]"` |
+| 2 | `uvx markitdown` | 免安装直接跑真包 | [uv](https://docs.astral.sh/uv/) |
+| 3 | `python -m markitdown` | 已装该包的 Python | Python 3.10+ 且装了 MarkItDown |
+| 4 | built-in | 插件自带的零依赖转换器 | 什么都不需要 |
 
-Order 2 is usually the best deal: if `uv` is on the machine, the **real** MarkItDown runs
-with no permanent install. It defaults to the `markitdown[all]` spec so Office and PDF
-formats actually work — plain `markitdown` has no format converters at all.
+顺序 2 通常最划算：机器上有 `uv`，就能跑**真正的** MarkItDown 且无需永久安装。
+它默认使用 `markitdown[all]`，否则 Office 和 PDF 格式根本无法转换——裸的 `markitdown`
+并不包含任何格式转换器。
 
-Order 4 keeps the tool useful on a bare machine. It is honest about its limits rather than
-guessing.
+顺序 4 让工具在什么都没装的机器上依然可用；它老实说明自己的能力边界，而不是瞎猜。
 
-## Fidelity
+## 保真度
 
-| Format | Real MarkItDown | Built-in fallback |
+| 格式 | 真 MarkItDown | 内置兜底 |
 | --- | --- | --- |
-| PDF | full layout extraction | not supported — says so, names the fix |
-| Word `.docx` | full | headings, paragraphs, lists, tables |
-| Excel `.xlsx` | full | sheets, shared strings, numbers, tables |
-| PowerPoint `.pptx` | full | slide-by-slide text |
-| HTML / `.epub` | full | headings, lists, links, tables, code |
-| CSV / TSV / JSON / XML | full | tables / fenced JSON / flattened text |
-| Jupyter `.ipynb` | full | markdown and code cells |
-| Images, audio, YouTube | OCR and transcription | not supported |
-| Plain text and code | passthrough | passthrough |
+| PDF | 完整版面提取 | 不支持——明确说明并给出解决办法 |
+| Word `.docx` | 完整 | 标题、段落、列表、表格 |
+| Excel `.xlsx` | 完整 | 工作表、共享字符串、数字、表格 |
+| PowerPoint `.pptx` | 完整 | 逐页文本 |
+| HTML / `.epub` | 完整 | 标题、列表、链接、表格、代码 |
+| CSV / TSV / JSON / XML | 完整 | 表格 / 代码块 JSON / 展平文本 |
+| Jupyter `.ipynb` | 完整 | Markdown 与代码单元 |
+| 图片、音频、YouTube | OCR 与转写 | 不支持 |
+| 纯文本与代码 | 原样透传 | 原样透传 |
 
-The built-in converter is a safety net, not a replacement. When it is used, the result
-says so and names the command that unlocks full fidelity.
+内置转换器是安全带，不是替代品。一旦用到它，结果里会写明，并给出解锁完整保真度的命令。
 
-## Install
+## 安装
 
-### Requirements
+### 版本要求
 
-DeepSeek Harness `0.1.5-rc.1` or newer on either release line — **0.1.x and 0.2.x are both
-supported**:
+需要 DeepSeek Harness `0.1.5-rc.1` 或更新，**0.1.x 与 0.2.x 两条发布线都支持**：
 
 ```jsonc
 "engines": { "dsh": ">=0.1.5-rc.1 <0.3.0-0" }
 ```
 
-Verified against harness `0.1.5-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.5`, and `0.2.2-alpha.2`: the
-build, the type check, and the test suite pass on each, and on `0.2.1-rc.5` the plugin was also
-mounted from a real profile, where the `markitdown` tool registered and converted a file. The 0.2
-line raised the harness's own schemastery dependency to `~3.18.4` (0.2.1: `~3.18.5`) and cordis to
-`~4.0.4` (0.2.1: `~4.0.5`); neither affected this plugin, which only binds `tools.register` and the
-schemastery DSL — its compiled output is identical across these versions.
+已在 `0.1.5-rc.2`、`0.2.0-rc.2`、`0.2.1-rc.5` 与 `0.2.2-alpha.2` 上验证：每条线上构建、类型检查与
+测试套件均通过；并且在 `0.2.1-rc.5` 上从真实 profile 完成了一次挂载，`markitdown` 工具成功注册并
+转换了文件。0.2 线把 harness 自身的 schemastery 依赖提到 `~3.18.4`（0.2.1 为 `~3.18.5`）、cordis
+提到 `~4.0.4`（0.2.1 为 `~4.0.5`），但都没有触及本插件——本插件只绑定 `tools.register` 与
+schemastery DSL，上述版本上的编译产物完全一致。
 
-The range deliberately admits prereleases: DSH compares `engines.dsh` with prerelease semantics, so
-each 0.2.x prerelease is covered without pinning it.
+该范围有意允许预发布版本：DSH 会按预发布语义比较 `engines.dsh`，因此无需为每个 0.2.x 预发布版
+单独收紧范围。
 
-Node `^22.19.0 || >=24.0.0`.
+Node 要求 `^22.19.0 || >=24.0.0`。
 
-Every install below goes through `dsh plugin`, which runs pnpm, so make sure `pnpm` is on your
-`PATH` (`npm install -g pnpm`).
+下文所有安装方式都经由 `dsh plugin`，它调用 pnpm，因此请确保 `pnpm` 在 `PATH` 上
+（`npm install -g pnpm`）。
 
-### From GitHub
+### 从 GitHub 安装
 
 ```sh
 dsh plugin --profile web add github:jiekesu967/dsh-markitdown
 ```
 
-The compiled `lib/` is committed, so this path needs no build step.
+编译产物 `lib/` 已提交进仓库，这条路不需要任何构建步骤。
 
-### From a release tarball
+### 从 Release 压缩包安装
 
-Download `dsh-markitdown-<version>.tgz` from
-[Releases](https://github.com/jiekesu967/dsh-markitdown/releases), then:
+从 [Releases](https://github.com/jiekesu967/dsh-markitdown/releases) 下载
+`dsh-markitdown-<version>.tgz`，然后：
 
 ```sh
 dsh plugin --profile web add ./dsh-markitdown-<version>.tgz
 ```
 
-### From npm
+### 从 npm 安装
 
 ```sh
 dsh plugin --profile web add dsh-markitdown
 ```
 
-The package is published from this repository:
-<https://www.npmjs.com/package/dsh-markitdown>.
+npm 包由本仓库发布：<https://www.npmjs.com/package/dsh-markitdown>。
 
-Then restart `dsh web`. The `markitdown` tool appears in the next session.
+重启 `dsh web`，`markitdown` 工具会在下一个会话中出现。
 
-Nothing else is required. For PDF, OCR, audio, and full-fidelity Office conversion, install
-one of:
+除此之外无需任何依赖。若要 PDF、OCR、音频与完整保真的 Office 转换，任选其一：
 
 ```sh
-pip install "markitdown[all]"     # or
-winget install astral-sh.uv       # Windows: then `uvx markitdown` works with no install
+pip install "markitdown[all]"     # 或者
+winget install astral-sh.uv       # Windows：之后 `uvx markitdown` 免安装可用
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Linux / macOS
 ```
 
-## Configuration
+## 配置
 
-Every field is optional; defaults are shown.
+所有字段均可选，下面是默认值。
 
 ```yaml
 - id: markitdown
   name: dsh-markitdown
   config:
     engine: auto              # auto | markitdown | uvx | python | builtin
-    uvxPackage: "markitdown[all]"   # slim it to "markitdown[pdf,docx,pptx,xlsx]"
-    command: ""               # explicit markitdown executable, overrides PATH
-    env: {}                   # extra environment variables for the external engine
-    timeoutMs: 120000         # per-conversion deadline
-    maxChars: 120000          # inline result cap; longer output is truncated
-    maxBytes: 67108864        # bytes the built-in engine will read
-    allowUrls: true           # accept http(s) inputs
-    extraArgs: []             # extra CLI arguments for the external engine
+    uvxPackage: "markitdown[all]"   # 可精简为 "markitdown[pdf,docx,pptx,xlsx]"
+    command: ""               # 显式指定 markitdown 可执行文件，覆盖 PATH 查找
+    env: {}                   # 传给外部引擎的额外环境变量
+    timeoutMs: 120000         # 单次转换超时
+    maxChars: 120000          # 内联返回上限，超出则截断
+    maxBytes: 67108864        # 内置引擎读取的字节上限
+    allowUrls: true           # 是否接受 http(s) 输入
+    extraArgs: []             # 传给外部引擎的额外命令行参数
 ```
 
-`engine: auto` probes the chain once per plugin instance and caches the winner. Setting an
-engine explicitly disables the fallback: if you ask for `uvx` and there is no `uv`, the call
-fails with the reason and the fix, rather than quietly converting with something else.
+`engine: auto` 每个插件实例只探测一次并缓存结果。显式指定引擎会**关闭兜底**：
+如果你指定 `uvx` 而机器上没有 `uv`，调用会直接失败并说明原因与解法，
+而不是悄悄换一个引擎转出别的东西。
 
-A first `uvx` run downloads MarkItDown and its dependencies (about a minute). Package-manager
-progress lines are filtered out of the tool result; only real diagnostics are reported.
+首次 `uvx` 运行会下载 MarkItDown 及其依赖（约一分钟）。包管理器的进度输出会被过滤掉，
+只有真正的诊断信息才会进入工具结果。
 
-`env` is a map of extra environment variables handed to the external engine's conversion process —
-the CLI, `uvx`, and `python` engines alike. It is layered over the UTF-8 settings the plugin already
-passes (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`), and your value wins per key. It exists so a locale
-that still corrupts output can be fixed in configuration instead of by patching files under
-`node_modules`, and it is also how to hand MarkItDown a proxy or `SSL_CERT_FILE` without changing
-the environment of the whole harness.
+`env` 是一个"变量名 → 值"的映射，会传给外部引擎的转换进程（CLI、`uvx`、`python` 三条路径都
+一样）。它叠加在插件已经传入的 UTF-8 设置（`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`）之上，同名
+键以你的值为准。它的用途是：当某个区域设置仍然弄坏输出时，可以只改配置自救，而不必去改
+`node_modules` 下的文件；也可以用它给 MarkItDown 传代理或 `SSL_CERT_FILE`，而不必改变整个
+harness 进程的环境。
 
-## Behaviour worth knowing
+## 值得知道的行为
 
-- **Relative paths resolve against the session workspace**, exactly like the built-in file
-  tools, not the harness process working directory.
-- **`output` writes through the filesystem seam**, so the per-session sandbox policy and the
-  read-before-write observation rule both apply. Writing to an existing file re-reads it first.
-- **A missing input fails before any subprocess starts**, with one clear sentence instead of an
-  engine traceback.
-- **Truncation is announced.** If the Markdown exceeds `maxChars` and no `output` path was
-  given, the result says it was truncated and how to get the rest.
-- **Subprocesses are launched with `shell: false`.** A filename or URL containing shell
-  metacharacters is one argv element and can never become a command. Only real executables are
-  accepted; `.cmd`/`.bat` shims are rejected because running them would require a shell.
-- MarkItDown performs I/O with the privileges of the current process. Treat untrusted input
-  accordingly, and see MarkItDown's own security guidance.
+- **相对路径按会话工作区解析**，与内置文件工具完全一致，而不是 harness 进程的工作目录。
+- **`output` 走文件系统 seam**，因此会话级沙箱策略与"先观察后写入"规则都会生效；
+  覆盖已存在的文件会先读取它。
+- **输入不存在时在启动任何子进程之前就失败**，给出一句清晰的说明，而不是引擎的 traceback。
+- **截断会被告知**：Markdown 超过 `maxChars` 且未给 `output` 路径时，结果里会说明被截断以及如何取全文。
+- **子进程一律 `shell: false`**：含 shell 元字符的文件名或 URL 只会是一个 argv 元素，永远不可能变成命令。
+  只接受真正的可执行文件；`.cmd`/`.bat` 垫片会被拒绝，因为运行它们需要 shell。
+- MarkItDown 以当前进程的权限执行 I/O。请据此对待不可信输入，并参阅 MarkItDown 自身的安全说明。
 
-## Resource limits
+## 资源限制
 
-Converting untrusted documents means the input decides how much work the converter does, so
-every cap is enforced while reading rather than after:
+转换不可信文档意味着"要花多少资源"由输入决定，因此每个上限都在读取过程中生效，而不是读取完再检查：
 
-- **Local files** are refused above `maxBytes`, both through the filesystem seam and on the
-  fallback path that runs without it. The size comes from `stat` first, so a small file never
-  reserves the whole cap.
-- **URL responses** are bounded during transfer: a declared `content-length` over the cap is
-  refused without downloading anything, and a streamed body is cancelled mid-transfer once it
-  passes the cap.
-- **Archive entries** carry a decompression limit, so a few-kilobyte ZIP cannot expand into
-  gigabytes. The default is 256 MiB per entry, overridable with `unzip(buffer, maxEntryBytes)`
-  and `convertBuiltin(bytes, name, { maxEntryBytes })`.
-- **Spreadsheet cell references** beyond Excel's own last column (`XFD`) are dropped rather than
-  used to size a row array.
-- **Subprocess output** is capped, and a child terminated for exceeding it says so — instead of
-  being reported as a timeout, which named the wrong cause and the wrong fix.
+- **本地文件**超过 `maxBytes` 即被拒绝：无论走文件系统 seam，还是不经过 seam 的兜底路径，行为一致。
+  大小先由 `stat` 得到，因此小文件不会按整个上限预分配内存。
+- **URL 响应**在传输过程中受限：声明的 `content-length` 一旦超过上限，就完全不下载；
+  流式响应则在传输途中越过上限时立即取消。
+- **压缩包条目**有解压上限，因此几 KB 的 ZIP 无法膨胀成数 GB。默认每个条目 256 MiB，
+  可用 `unzip(buffer, maxEntryBytes)` 与 `convertBuiltin(bytes, name, { maxEntryBytes })` 覆盖。
+- **表格单元格引用**超出 Excel 自身最后一列（`XFD`）时会被丢弃，而不是用来确定行数组大小。
+- **子进程输出**有上限；因超出上限被终止的子进程会如实说明原因——而不是被报成超时，
+  那样既说错了原因，也给错了解决办法。
 
-## Development
+## 开发
 
 ```sh
-npm run build      # compile src/ → lib/
-npm test           # built-in converter + plugin surface tests
-npm run typecheck  # type check only
+npm run build      # 编译 src/ → lib/
+npm test           # 内置转换器 + 插件接口测试
+npm run typecheck  # 只做类型检查
 ```
 
-The build links the DSH packages from `$DSH_CHECKOUT` (a source checkout) or `$DSH_RUNTIME` (an
-installed runtime). With neither set it finds the runtime itself — the `dsh` on your `PATH`, this
-Node installation's global prefix, or `npm root -g` — so plain `npm run build` works with no setup.
-It then compiles with the TypeScript compiler API in a single Node process — no shell, so it also
-runs on Windows. Rebuilding an unchanged tree leaves `lib/` byte-identical.
+构建从 `$DSH_CHECKOUT`（源码检出）或 `$DSH_RUNTIME`（已安装运行时）解析并链接 DSH 包；两者都未
+设置时会自行发现运行时——`PATH` 上的 `dsh`、当前 Node 安装的全局前缀，或 `npm root -g`——因此
+直接 `npm run build` 即可。编译在单个 Node 进程内通过 TypeScript 编译器 API 完成——不依赖 shell，
+Windows 上同样可用。源码未变时重新构建，`lib/` 逐字节一致。
 
-Tests need no network, no Python, and no MarkItDown install: the fallback engine is exercised
-against synthetic OOXML fixtures built in-process. If your environment forbids spawning child
-processes, `npm run test:inline` runs them all in one.
+测试不需要网络、Python 或 MarkItDown：内置引擎用进程内合成出来的 OOXML 夹具测试。
+若环境不允许创建子进程，用 `npm run test:inline` 在同进程内跑完。
 
 ```
-src/index.ts     plugin wiring: config, tool definition, execute path
-src/engine.ts    engine chain: probe, cache, launch
-src/builtin.ts   dependency-free converters
-src/text.ts      entity decoding, HTML→Markdown, delimited parsing
-src/zip.ts       minimal ZIP reader for OOXML/EPUB containers
-src/exec.ts      subprocess plumbing with honest failure reporting
+src/index.ts     插件装配：配置、工具定义、执行路径
+src/engine.ts    引擎链：探测、缓存、启动
+src/builtin.ts   零依赖转换器
+src/text.ts      实体解码、HTML→Markdown、分隔符解析
+src/zip.ts       OOXML/EPUB 用的最小 ZIP 读取器
+src/exec.ts      子进程封装，失败原因如实上报
 ```
 
-## Credits
+## 致谢
 
-MarkItDown is Microsoft's work, MIT licensed: <https://github.com/microsoft/markitdown>.
-This plugin only drives it. Trademarks belong to their owners; this project is not affiliated
-with or endorsed by Microsoft.
+MarkItDown 是微软的作品，MIT 许可：<https://github.com/microsoft/markitdown>。
+本插件只是驱动它。商标归各自所有者；本项目与微软无隶属或背书关系。
 
-## License
+## 许可
 
-MIT — see [LICENSE](LICENSE).
+MIT —— 见 [LICENSE](LICENSE)。
